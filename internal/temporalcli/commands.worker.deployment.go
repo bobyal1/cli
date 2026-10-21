@@ -1379,10 +1379,7 @@ func (c *TemporalWorkerDeploymentCreateVersionCommand) run(cctx *CommandContext,
 		awsSNSTopicArn: c.AwsSNSTopicArn,
 		awsSNSAssumeRoleArn: c.AwsSNSAssumeRoleArn,
 		awsSNSAssumeRoleExternalId: c.AwsSNSAssumeRoleExternalId,
-		awsSNSTopicArn: c.AwsSNSTopicArn,
-			awsSNSAssumeRoleArn: c.AwsSNSAssumeRoleArn,
-			awsSNSAssumeRoleExternalId: c.AwsSNSAssumeRoleExternalId,
-			awsLambdaFunctionArn: c.AwsLambdaFunctionArn,
+		awsLambdaFunctionArn: c.AwsLambdaFunctionArn,
 		awsLambdaAssumeRoleArn: c.AwsLambdaAssumeRoleArn,
 		awsLambdaAssumeRoleExternalId: c.AwsLambdaAssumeRoleExternalId,
 		awsLambdaSkipRoleAndExternalId: c.AwsLambdaSkipRoleAndExternalId,
@@ -1479,6 +1476,9 @@ func (c *TemporalWorkerDeploymentUpdateVersionComputeConfigCommand) run(cctx *Co
 	}
 
 	computeConfigArgs := &ComputeConfigArgs{
+			awsSNSTopicArn: c.AwsSNSTopicArn,
+			awsSNSAssumeRoleArn: c.AwsSNSAssumeRoleArn,
+			awsSNSAssumeRoleExternalId: c.AwsSNSAssumeRoleExternalId,
 			awsLambdaFunctionArn: c.AwsLambdaFunctionArn,
 			awsLambdaAssumeRoleArn: c.AwsLambdaAssumeRoleArn,
 			awsLambdaAssumeRoleExternalId: c.AwsLambdaAssumeRoleExternalId,
