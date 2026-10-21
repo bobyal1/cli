@@ -60,67 +60,67 @@ jobs:
             core.setOutput('release_tag', releaseTag);
             core.setOutput('tag_latest', inputTagLatest === 'true');
 
-      - name: Download release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
-        run: |
-          echo "Downloading assets from release ${RELEASE_TAG}..."
-          gh release download "${RELEASE_TAG}" --pattern "temporal_*_linux_*.tar.gz"
+      # - name: Download release assets
+      #   env:
+      #     GH_TOKEN: ${{ github.token }}
+      #     RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+      #   run: |
+      #     echo "Downloading assets from release ${RELEASE_TAG}..."
+      #     gh release download "${RELEASE_TAG}" --pattern "temporal_*_linux_*.tar.gz"
 
-          echo "Extracting and organizing binaries..."
-          mkdir -p dist/amd64 dist/arm64
+      #     echo "Extracting and organizing binaries..."
+      #     mkdir -p dist/amd64 dist/arm64
 
-          tar -xzf temporal_*_linux_amd64.tar.gz
-          mv temporal dist/amd64/temporal
+      #     tar -xzf temporal_*_linux_amd64.tar.gz
+      #     mv temporal dist/amd64/temporal
 
-          tar -xzf temporal_*_linux_arm64.tar.gz
-          mv temporal dist/arm64/temporal
+      #     tar -xzf temporal_*_linux_arm64.tar.gz
+      #     mv temporal dist/arm64/temporal
 
-          echo "Verifying binaries..."
-          ls -lh dist/amd64/temporal
-          ls -lh dist/arm64/temporal
+      #     echo "Verifying binaries..."
+      #     ls -lh dist/amd64/temporal
+      #     ls -lh dist/arm64/temporal
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      # - name: Set up Docker Buildx
+      #   uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-      - name: Log in to Docker Hub
-        if: inputs.publish
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      # - name: Log in to Docker Hub
+      #   if: inputs.publish
+      #   uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      #   with:
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
-        if: inputs.publish
-        run: |
-          docker buildx bake \
-            --file docker-bake.hcl \
-            --push \
-            cli
-        env:
-          CLI_SHA: ${{ steps.meta.outputs.cli_sha }}
-          IMAGE_SHA_TAG: ${{ steps.meta.outputs.image_sha_tag }}
-          VERSION: ${{ steps.meta.outputs.version }}
-          TAG_LATEST: ${{ steps.meta.outputs.tag_latest }}
-          IMAGE_NAMESPACE: temporalio
-          IMAGE_NAME: temporal
-          GITHUB_REPOSITORY: ${{ github.repository }}
+      # - name: Build and push Docker image
+      #   if: inputs.publish
+      #   run: |
+      #     docker buildx bake \
+      #       --file docker-bake.hcl \
+      #       --push \
+      #       cli
+      #   env:
+      #     CLI_SHA: ${{ steps.meta.outputs.cli_sha }}
+      #     IMAGE_SHA_TAG: ${{ steps.meta.outputs.image_sha_tag }}
+      #     VERSION: ${{ steps.meta.outputs.version }}
+      #     TAG_LATEST: ${{ steps.meta.outputs.tag_latest }}
+      #     IMAGE_NAMESPACE: temporalio
+      #     IMAGE_NAME: temporal
+      #     GITHUB_REPOSITORY: ${{ github.repository }}
 
-      - name: Build Docker image (no push)
-        if: ${{ !inputs.publish }}
-        run: |
-          docker buildx bake \
-            --file docker-bake.hcl \
-            cli
-        env:
-          CLI_SHA: ${{ steps.meta.outputs.cli_sha }}
-          IMAGE_SHA_TAG: ${{ steps.meta.outputs.image_sha_tag }}
-          VERSION: ${{ steps.meta.outputs.version }}
-          TAG_LATEST: ${{ steps.meta.outputs.tag_latest }}
-          IMAGE_NAMESPACE: temporalio
-          IMAGE_NAME: temporal
-          GITHUB_REPOSITORY: ${{ github.repository }}
+      # - name: Build Docker image (no push)
+      #   if: ${{ !inputs.publish }}
+      #   run: |
+      #     docker buildx bake \
+      #       --file docker-bake.hcl \
+      #       cli
+      #   env:
+      #     CLI_SHA: ${{ steps.meta.outputs.cli_sha }}
+      #     IMAGE_SHA_TAG: ${{ steps.meta.outputs.image_sha_tag }}
+      #     VERSION: ${{ steps.meta.outputs.version }}
+      #     TAG_LATEST: ${{ steps.meta.outputs.tag_latest }}
+      #     IMAGE_NAMESPACE: temporalio
+      #     IMAGE_NAME: temporal
+      #     GITHUB_REPOSITORY: ${{ github.repository }}
