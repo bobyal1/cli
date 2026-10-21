@@ -1005,6 +1005,21 @@ func (c *TemporalWorkerDeploymentManagerIdentityUnsetCommand) run(cctx *CommandC
 	return nil
 }
 
+func awsSNSProviderDetailsPayload(topicARN, assumeRoleARN, assumeRoleExternalID string) (*commonpb.Payload, error) {
+	if topicARN == "" {
+		return nil, fmt.Errorf("missing required AWS SNS provider detail: topic_arn")
+	}
+	providerDetails := map[string]any{"topic_arn": topicARN}
+	if assumeRoleARN != "" {
+		providerDetails["role"] = assumeRoleARN
+	}
+	if assumeRoleExternalID != "" {
+		providerDetails["role_external_id"] = assumeRoleExternalID
+	}
+	dc := converter.GetDefaultDataConverter()
+	return dc.ToPayload(&providerDetails)
+}
+
 func validateAWSLambdaProviderDetails(details map[string]any, skipRoleAndExternalID bool) error {
 	if _, ok := details["arn"]; !ok {
 		return fmt.Errorf("missing required AWS Lambda provider detail: arn")
@@ -1136,6 +1151,9 @@ func gcpCloudRunProviderDetailsPayload(
 // ComputeConfigArgs holds ComputeConfig specific args along with helpers for distinguishing between desired compute
 // provider
 type ComputeConfigArgs struct {
+	awsSNSTopicArn                   string
+	awsSNSAssumeRoleArn              string
+	awsSNSAssumeRoleExternalId       string
 	awsLambdaFunctionArn              string
 	awsLambdaAssumeRoleArn            string
 	awsLambdaAssumeRoleExternalId     string
@@ -1148,6 +1166,10 @@ type ComputeConfigArgs struct {
 	gcpCloudRunRegion                 string
 	gcpCloudRunWorkerPool             string
 	gcpCloudRunServiceAccount         string
+}
+
+func (c *ComputeConfigArgs) hasAwsSNSArgs() bool {
+	return c.awsSNSTopicArn != "" || c.awsSNSAssumeRoleArn != "" || c.awsSNSAssumeRoleExternalId != ""
 }
 
 func (c *ComputeConfigArgs) hasAwsLambdaArgs() bool {
@@ -1174,24 +1196,28 @@ func (c *ComputeConfigArgs) hasGcpCloudRunArgs() bool {
 // computeProviderConfig selects the single compute provider for a Worker
 // Deployment Version's "default" scaling group from the command's flags. It
 // enforces that flags for different providers are not mixed, then dispatches on
-// the trigger flag (--aws-lambda-function-arn / --aws-agentcore-endpoint-arn /
-// --gcp-cloud-run-worker-pool). Returns an empty providerType when no provider
+// the trigger flag (--aws-sns-topic-arn / --aws-lambda-function-arn /
+// --aws-agentcore-endpoint-arn / --gcp-cloud-run-worker-pool). Returns an empty providerType when no provider
 // flags are set, leaving the "no configuration" decision to the caller.
 func computeProviderConfig(c *ComputeConfigArgs) (providerType string, detailsPayload *commonpb.Payload, err error) {
+	awsSNSSet := c.hasAwsSNSArgs()
 	awsLambdaSet := c.hasAwsLambdaArgs()
 	awsAgentcoreSet := c.hasAwsAgentcoreArgs()
 	gcpSet := c.hasGcpCloudRunArgs()
 	setCount := 0
-	for _, set := range []bool{awsLambdaSet, awsAgentcoreSet, gcpSet} {
+	for _, set := range []bool{awsSNSSet, awsLambdaSet, awsAgentcoreSet, gcpSet} {
 		if set {
 			setCount++
 		}
 	}
 	if setCount > 1 {
-		return "", nil, fmt.Errorf("cannot combine --aws-lambda-*, --aws-agentcore-*, and --gcp-cloud-run-* flags; a Worker Deployment Version supports a single compute provider")
+		return "", nil, fmt.Errorf("cannot combine --aws-sns-*, --aws-lambda-*, --aws-agentcore-*, and --gcp-cloud-run-* flags; a Worker Deployment Version supports a single compute provider")
 	}
 
 	switch {
+	case c.hasAwsSNSArgs():
+		p, err := awsSNSProviderDetailsPayload(c.awsSNSTopicArn, c.awsSNSAssumeRoleArn, c.awsSNSAssumeRoleExternalId)
+		return "aws-sns", p, err
 	case c.hasAwsLambdaArgs():
 		p, err := awsLambdaProviderDetailsPayload(
 			c.awsLambdaFunctionArn,
@@ -1350,6 +1376,9 @@ func (c *TemporalWorkerDeploymentCreateVersionCommand) run(cctx *CommandContext,
 	requestID := uuid.NewString()
 
 	providerType, detailsPayload, err := computeProviderConfig(&ComputeConfigArgs{
+		awsSNSTopicArn: c.AwsSNSTopicArn,
+		awsSNSAssumeRoleArn: c.AwsSNSAssumeRoleArn,
+		awsSNSAssumeRoleExternalId: c.AwsSNSAssumeRoleExternalId,
 		awsLambdaFunctionArn: c.AwsLambdaFunctionArn,
 		awsLambdaAssumeRoleArn: c.AwsLambdaAssumeRoleArn,
 		awsLambdaAssumeRoleExternalId: c.AwsLambdaAssumeRoleExternalId,
@@ -1447,6 +1476,9 @@ func (c *TemporalWorkerDeploymentUpdateVersionComputeConfigCommand) run(cctx *Co
 	}
 
 	computeConfigArgs := &ComputeConfigArgs{
+			awsSNSTopicArn: c.AwsSNSTopicArn,
+			awsSNSAssumeRoleArn: c.AwsSNSAssumeRoleArn,
+			awsSNSAssumeRoleExternalId: c.AwsSNSAssumeRoleExternalId,
 			awsLambdaFunctionArn: c.AwsLambdaFunctionArn,
 			awsLambdaAssumeRoleArn: c.AwsLambdaAssumeRoleArn,
 			awsLambdaAssumeRoleExternalId: c.AwsLambdaAssumeRoleExternalId,
@@ -1462,9 +1494,9 @@ func (c *TemporalWorkerDeploymentUpdateVersionComputeConfigCommand) run(cctx *Co
 		}
 
 	if c.Remove {
-		if computeConfigArgs.hasAwsLambdaArgs() || computeConfigArgs.hasAwsAgentcoreArgs() || computeConfigArgs.hasGcpCloudRunArgs() ||
+		if computeConfigArgs.hasAwsSNSArgs() || computeConfigArgs.hasAwsLambdaArgs() || computeConfigArgs.hasAwsAgentcoreArgs() || computeConfigArgs.hasGcpCloudRunArgs() ||
 			c.gcpScalerFlags().anySet() {
-			return fmt.Errorf("--remove cannot be combined with --aws-lambda-*, --aws-agentcore-*, or --gcp-cloud-run-* flags")
+			return fmt.Errorf("--remove cannot be combined with --aws-sns-*, --aws-lambda-*, --aws-agentcore-*, or --gcp-cloud-run-* flags")
 		}
 		request.RemoveComputeConfigScalingGroups = []string{"default"}
 	} else {
