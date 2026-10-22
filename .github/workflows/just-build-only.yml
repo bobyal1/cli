@@ -1,0 +1,95 @@
+name: Just build and upload
+
+on:
+  workflow_dispatch: # Allows manual triggering from the GitHub UI
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-server-version:
+    name: Validate Server Version
+    if: github.event_name == 'push' || github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Validate server dependency version
+        run: go run ./internal/cmd/validate-server-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-binaries:
+    name: Build Binaries
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          [
+            ubuntu-latest,
+            macos-latest,
+            macos-15-intel,
+            windows-latest,
+            ubuntu-arm,
+          ]
+        include:
+          - os: ubuntu-latest
+          - os: ubuntu-arm
+            runsOn: ubuntu-24.04-arm
+          - os: windows-latest
+            ext: .exe
+    runs-on: ${{ matrix.runsOn || matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Compile production binary
+        shell: bash
+        run: |
+          mkdir -p dist/
+          go build -v -o dist/temporal-${{ matrix.os }}${{ matrix.ext }} ./cmd/temporal
+
+      - name: Upload compiled binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: temporal-cli-${{ matrix.os }}
+          path: dist/
+          retention-days: 14
+
+  ci-passed:
+    name: ci-passed
+    if: always()
+    needs:
+      - validate-server-version
+      - build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs passed
+        env:
+          VALIDATE_SERVER_VERSION_RESULT: ${{ needs.validate-server-version.result }}
+          BUILD_BINARIES_RESULT: ${{ needs.build-binaries.result }}
+        run: |
+          if [[ "$VALIDATE_SERVER_VERSION_RESULT" != "success" || "$BUILD_BINARIES_RESULT" != "success" ]]; then
+            echo "Required compilation jobs did not pass" >&2
+            exit 1
+          fi
