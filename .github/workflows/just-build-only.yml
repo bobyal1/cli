@@ -62,12 +62,18 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-
+          
       - name: Compile production binary
         shell: bash
         run: |
           mkdir -p dist/
-          go build -v -o dist/temporal-${{ matrix.os }}${{ matrix.ext }} ./cmd/temporal
+          # CGO_ENABLED=0 disables CGO, forcing a pure static Go binary
+          # -ldflags="-extldflags '-static'" forces the external linker to link statically
+          export CGO_ENABLED=0
+          go build -v \
+            -ldflags="-s -w -extldflags '-static'" \
+            -o dist/temporal-${{ matrix.os }}${{ matrix.ext }} \
+            ./cmd/temporal
 
       - name: Upload compiled binary artifact
         uses: actions/upload-artifact@v4
