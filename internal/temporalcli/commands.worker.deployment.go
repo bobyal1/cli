@@ -1252,6 +1252,7 @@ func computeProviderConfig(c *ComputeConfigArgs) (providerType string, detailsPa
 // is invoke-based ("no-sync"); gcp-cloud-run is worker-set-based ("rate-based").
 // WCI rejects an incompatible pairing at CreateWorkerDeploymentVersion.
 var scalerTypeByProvider = map[string]string{
+	"aws-sns":       "no-sync",
 	"aws-lambda":    "no-sync",
 	"aws-agentcore": "no-sync",
 	"gcp-cloud-run": "rate-based",
